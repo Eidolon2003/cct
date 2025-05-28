@@ -2,6 +2,12 @@
 --Fuel assumed to be in slot 1
 --Only works in mining dim without caves
 
+--List non-ores we still want to pick up
+nonores = {
+	"minecraft:andesite",
+	"xycraft_world:kivi",
+}
+
 count = 0
 
 local function fuel()
@@ -16,7 +22,17 @@ end
 
 local function isOre()
 	local a,b = turtle.inspect()
-	return a and b.tags["c:ores"]
+	if not a then return false end
+	
+	local flag = false
+	for key,val in pairs(nonores) do
+		if b.name == val then 
+			flag = true 
+			break
+		end
+	end
+	
+	return flag or b.tags["c:ores"]
 end
 
 local function toSurface()
@@ -61,4 +77,25 @@ while turtle.digDown() do
 	end
 end
 toSurface()
+
+--search inventory for cobble or deepslate to place below self
+for i = 2,16 do
+	x = turtle.getItemDetail(i)
+	
+	if x.name == "minecraft:cobblestone"
+	or x.name == "minecraft:cobbled_deepslate"
+	then
+		turtle.select(i)
+		turtle.placeDown()
+		break
+	end
+end
+
 unload()
+
+--get in position for next dig
+turtle.forward()
+turtle.forward()
+turtle.turnLeft()
+turtle.forward()
+turtle.turnRight()
