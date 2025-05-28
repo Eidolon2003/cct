@@ -19,7 +19,9 @@ while true do
 	
 	if fs.exists(tempName) then
 		print("Replacing " .. line)
-		shell.execute("rm", line)
+		if fs.exists(line) then
+			shell.execute("rm", line)
+		end
 		shell.execute("mv", tempName, line)
 	end
 end
