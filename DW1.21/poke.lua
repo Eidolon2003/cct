@@ -12,7 +12,7 @@ count = 0
 
 local function fuel()
 	while turtle.getFuelLevel() < 100 do
-		turtle.refuel()
+		turtle.refuel(1)
 	end
 end
 
