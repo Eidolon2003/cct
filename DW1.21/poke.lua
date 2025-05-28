@@ -1,6 +1,6 @@
---poke miner version 1
---fuel assumed to be in slot 1
---only works in mining dim without caves
+--Pokes down to bedrock and collects any adjacent ores
+--Fuel assumed to be in slot 1
+--Only works in mining dim without caves
 
 count = 0
 
