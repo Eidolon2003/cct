@@ -1,22 +1,24 @@
 local jpi = {}
 
-local modem = nil
-local myID = os.getComputerID()
-local myLabel = os.getComputerLabel()
+jpi.BROADCAST = 65535
+jpi.modem = false
+jpi.myID = os.getComputerID()
+jpi.myLabel = os.getComputerLabel()
 
 function initNetwork()
-	modem = peripheral.find("modem")
-	if not modem then return end
+	jpi.modem = peripheral.find("modem")
+	if not jpi.modem then return end
 	
-	modem.closeAll()
-	modem.open(65535)
-	modem.open(myID)
+	jpi.modem.closeAll()
+	jpi.modem.open(jpi.BROADCAST)
+	jpi.modem.open(jpi.myID)
 end
 
 function deinitNetwork()
-	if modem then 
-		modem.closeAll()
-		modem = nil
+	if jpi.modem then 
+		jpi.modem.close(jpi.BROADCAST)
+		jpi.modem.close(jpi.myID)
+		jpi.modem = false
 	end
 end
 
@@ -48,17 +50,17 @@ local function printPacket(receiverID, senderID, packet, distance)
 end
 
 local function handleARP(receiverID, senderID, packet)
-	if receiverID == 65535 then
+	if receiverID == jpi.BROADCAST then
 		--If receiverID is BROADCAST, then this is an arp request
 		--Respond to the request
 		local newReceiverID = senderID
-		local newSenderID = myID
+		local newSenderID = jpi.myID
 		local newPacket = {}
 		newPacket.protocol = "arp"
 		newPacket.payload = {}
 		newPacket.payload.receiverLabel = packet.payload.senderLabel
-		newPacket.payload.senderLabel = myLabel
-		modem.transmit(newReceiverID, newSenderID, newPacket)
+		newPacket.payload.senderLabel = jpi.myLabel
+		jpi.modem.transmit(newReceiverID, newSenderID, newPacket)
 	else
 		--If receiverID is filled in, then this is an arp reply
 		--Put this in event queue for the program to handle
@@ -73,12 +75,12 @@ local function handlePing(receiverID, senderID, packet, distance)
 	else
 		--If ack is false, we need to reply
 		local newReceiverID = senderID
-		local newSenderID = myID
+		local newSenderID = jpi.myID
 		local newPacket = {}
 		newPacket.protocol = "ping"
 		newPacket.payload = {}
 		newPacket.payload.ack = true
-		modem.transmit(newReceiverID, newSenderID, newPacket)
+		jpi.modem.transmit(newReceiverID, newSenderID, newPacket)
 	end
 end
 
@@ -95,7 +97,7 @@ function handleEvents()
 			
 		if packet.protocol and packet.payload then
 			if packet.protocol == "arp"
-			and packet.payload.receiverLabel == myLabel then
+			and packet.payload.receiverLabel == jpi.myLabel then
 				handleARP(receiverID, senderID, packet)
 			elseif packet.protocol == "ping" then
 				handlePing(receiverID, senderID, packet, distance)
@@ -108,21 +110,21 @@ end
 
 local arpCache = {}
 function jpi.arp(targetLabel)
-	if not modem then return nil end
+	if not jpi.modem then return nil end
 
 	--Check the cache before making a broadcast
 	if arpCache[targetLabel] then
 		return arpCache[targetLabel]
 	end
 	
-	local receiverID = 65535
-	local senderID = myID
+	local receiverID = jpi.BROADCAST
+	local senderID = jpi.myID
 	local packet = {}
 	packet.protocol = "arp"
 	packet.payload = {}
 	packet.payload.receiverLabel = targetLabel
-	packet.payload.senderLabel = myLabel
-	modem.transmit(receiverID, senderID, packet)
+	packet.payload.senderLabel = jpi.myLabel
+	jpi.modem.transmit(receiverID, senderID, packet)
 	
 	local targetID = nil
 	local function getReply()
@@ -140,15 +142,15 @@ function jpi.arp(targetLabel)
 end
 
 function jpi.ping(targetID)
-	if not modem then return nil end
+	if not jpi.modem then return nil end
 	
 	local receiverID = targetID
-	local senderID = myID
+	local senderID = jpi.myID
 	local packet = {}
 	packet.protocol = "ping"
 	packet.payload = {}
 	packet.payload.ack = false
-	modem.transmit(receiverID, senderID, packet)
+	jpi.modem.transmit(receiverID, senderID, packet)
 	
 	local distance = nil
 	local function getReply()
@@ -160,20 +162,20 @@ function jpi.ping(targetID)
 end
 
 function jpi.send(targetID, payload)
-	if not modem then return nil end
+	if not jpi.modem then return nil end
 	
 	local receiverID = targetID
-	local senderID = myID
+	local senderID = jpi.myID
 	local packet = {}
 	packet.protocol = "msg"
 	packet.payload = payload
-	modem.transmit(receiverID, senderID, packet)
+	jpi.modem.transmit(receiverID, senderID, packet)
 	
 	return true
 end
 
 function jpi.receive()
-	if not modem then return nil end
+	if not jpi.modem then return nil end
 	_,payload = os.pullEvent("jpi_msg")
 	return payload
 end

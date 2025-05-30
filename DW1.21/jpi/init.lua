@@ -15,7 +15,8 @@ local function bindCall(program)
 	local result = false
 
 	local runner = function()
-		local env = {myLabel, myID, modem}
+		local env = jpi
+		env.execute = nil
 		merge(env, getfenv())
 		result = os.run(env, program)
 	end
