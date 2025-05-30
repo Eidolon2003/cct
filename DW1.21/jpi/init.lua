@@ -15,8 +15,9 @@ local function bindCall(program)
 	local result = false
 
 	local runner = function()
-		local env = jpi
-		env.execute = nil
+		local env = {}
+		env.jpi = jpi
+		env.jpi.execute = nil
 		merge(env, getfenv())
 		result = os.run(env, program)
 	end
