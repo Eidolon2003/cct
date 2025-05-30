@@ -49,6 +49,8 @@ local function printPacket(receiverID, senderID, packet, distance)
 	print("")
 end
 
+local arpCache = {}
+
 local function handleARP(receiverID, senderID, packet)
 	if receiverID == jpi.BROADCAST then
 		--If receiverID is BROADCAST, then this is an arp request
@@ -61,6 +63,9 @@ local function handleARP(receiverID, senderID, packet)
 		newPacket.payload.receiverLabel = packet.payload.senderLabel
 		newPacket.payload.senderLabel = jpi.myLabel
 		jpi.modem.transmit(newReceiverID, newSenderID, newPacket)
+		
+		--Also cache this ID/Label pair
+		arpCache[packet.payload.senderLabel] = senderID
 	else
 		--If receiverID is filled in, then this is an arp reply
 		--Put this in event queue for the program to handle
@@ -108,7 +113,6 @@ function handleEvents()
 	end
 end
 
-local arpCache = {}
 function jpi.arp(targetLabel)
 	if not jpi.modem then return nil end
 
@@ -174,10 +178,29 @@ function jpi.send(targetID, payload)
 	return true
 end
 
-function jpi.receive()
+function jpi.receive( --[[optional]] timeout )
 	if not jpi.modem then return nil end
-	_,payload = os.pullEvent("jpi_msg")
+	
+	local payload = nil
+	local rx = function()
+		_,payload = os.pullEvent("jpi_msg")
+	end
+	
+	if timeout then
+		parallel.waitForAny(rx, function() os.sleep(timeout) end)
+	else
+		rx()
+	end
+	
 	return payload
+end
+
+function jpi.getArpCache()
+	return arpCache
+end
+
+function jpi.clearArpCache()
+	arpCache = {}
 end
 
 return jpi
