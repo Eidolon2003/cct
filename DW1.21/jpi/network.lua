@@ -90,7 +90,7 @@ local function handlePing(receiverID, senderID, packet, distance)
 end
 
 local function handleMsg(receiverID, senderID, packet)
-	os.queueEvent("jpi_msg", packet.payload)
+	os.queueEvent("jpi_msg", senderID, packet.payload)
 end
 
 function handleEvents()
@@ -182,8 +182,9 @@ function jpi.receive( --[[optional]] timeout )
 	if not jpi.modem then return nil end
 	
 	local payload = nil
+	local senderID = nil
 	local rx = function()
-		_,payload = os.pullEvent("jpi_msg")
+		_,senderID,payload = os.pullEvent("jpi_msg")
 	end
 	
 	if timeout then
@@ -192,7 +193,7 @@ function jpi.receive( --[[optional]] timeout )
 		rx()
 	end
 	
-	return payload
+	return senderID,payload
 end
 
 function jpi.getArpCache()
