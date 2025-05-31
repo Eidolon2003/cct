@@ -14,7 +14,7 @@ while true do
 	if not line or line == "" then break end
 	
 	local url = base .. line
-	local tempName = "." .. line
+	local tempName = line .. "_"
 	shell.execute("wget", url, tempName)
 	
 	if fs.exists(tempName) then
