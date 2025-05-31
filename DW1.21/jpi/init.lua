@@ -29,12 +29,19 @@ local function bindCall(program)
 	return runner,getResult
 end
 
+local function terminateHandler()
+	_ = os.pullEventRaw("terminate")
+	print("jpi: Execution terminated")
+	deinitNetwork()
+end
+
 function jpi.execute(program)
 	initNetwork()
 	
 	local runner,getResult = bindCall(program)
 	
 	parallel.waitForAny(
+		terminateHandler,
 		handleEvents,
 		runner
 	)
