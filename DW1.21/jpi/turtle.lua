@@ -120,8 +120,8 @@ function jpi.move(vec)
 	
 	--x
 	if vec.x ~= 0 then
-		local vecX = vector.new(vec.x, 0, 0)
-		jpi.face(vecX:normalize())
+		local vecX = vector.new(vec.x/math.abs(vec.x), 0, 0)
+		jpi.face(vecX)
 		repeat
 			jpi.forward()
 		until jpi.pos.x == targetPos.x
@@ -129,8 +129,8 @@ function jpi.move(vec)
 	
 	--z
 	if vec.z ~= 0 then
-		local vecZ = vector.new(0, 0, vec.z)
-		jpi.face(vecZ:normalize())
+		local vecZ = vector.new(0, 0, vec.z/math.abs(vec.z))
+		jpi.face(vecZ)
 		repeat
 			jpi.forward()
 		until jpi.pos.z == targetPos.z
