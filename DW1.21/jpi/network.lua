@@ -113,8 +113,11 @@ function handleEvents()
 	end
 end
 
-function jpi.arp(targetLabel)
+function jpi.arp(targetLabel, --[[optional]] timeout)
 	if not jpi.modem then return nil end
+	
+	--Default timeout
+	timeout = timeout or 1
 
 	--Check the cache before making a broadcast
 	if arpCache[targetLabel] then
@@ -134,7 +137,7 @@ function jpi.arp(targetLabel)
 	local function getReply()
 		_,targetID = os.pullEvent("jpi_arp")
 	end
-	parallel.waitForAny(getReply, function() os.sleep(5) end)
+	parallel.waitForAny(getReply, function() os.sleep(timeout) end)
 	
 	if targetID then
 		--update cache
@@ -145,8 +148,11 @@ function jpi.arp(targetLabel)
 	end
 end
 
-function jpi.ping(targetID)
+function jpi.ping(targetID, --[[optional]] timeout)
 	if not jpi.modem then return nil end
+	
+	--Default timeout
+	timeout = timeout or 1
 	
 	local receiverID = targetID
 	local senderID = jpi.myID
@@ -160,7 +166,7 @@ function jpi.ping(targetID)
 	local function getReply()
 		_,distance = os.pullEvent("jpi_ping")
 	end
-	parallel.waitForAny(getReply, function() os.sleep(5) end)
+	parallel.waitForAny(getReply, function() os.sleep(timeout) end)
 	
 	return distance
 end
