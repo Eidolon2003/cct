@@ -81,6 +81,7 @@ toSurface()
 --search inventory for cobble or deepslate to place below self
 for i = 2,16 do
 	x = turtle.getItemDetail(i)
+	if not x then break end
 	
 	if x.name == "minecraft:cobblestone"
 	or x.name == "minecraft:cobbled_deepslate"
