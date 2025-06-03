@@ -25,7 +25,7 @@ while true do
 	
 	if not a then
 		air()
-	elseif string.find(b.name, "dire") then
+	elseif string.find(b.name, "raw") then
 		done()
 	end
 	
