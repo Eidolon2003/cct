@@ -30,4 +30,4 @@ while true do
 	end
 	
 	turtle.turnLeft()
-ende
+end
