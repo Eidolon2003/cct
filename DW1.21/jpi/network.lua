@@ -184,13 +184,26 @@ function jpi.send(targetID, payload)
 	return true
 end
 
-function jpi.receive( --[[optional]] timeout )
+function jpi.receive( --[[optional]] id, --[[optional]] timeout )
 	if not jpi.modem then return nil end
 	
 	local payload = nil
 	local senderID = nil
 	local rx = function()
-		_,senderID,payload = os.pullEvent("jpi_msg")
+		if not id then
+			_,senderID,payload = os.pullEvent("jpi_msg")
+			return
+		end
+		
+		while true do
+			_,sid,p = os.pullEvent("jpi_msg")
+			if sid == id then
+				senderID = sid
+				payload = p
+				return
+			end
+			os.queueEvent("jpi_msg", sid, p)
+		end
 	end
 	
 	if timeout then

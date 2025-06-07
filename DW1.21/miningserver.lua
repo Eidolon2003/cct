@@ -117,6 +117,10 @@ local function removeByValue(tbl, val)
 	end
 end
 
+local function getProgress()
+	return currentCell.x * 16 + currentCell.z
+end
+
 local turtles = {}
 
 local STATUS_HOMING = "homing"
@@ -136,6 +140,16 @@ local function sendMessage(id, msg, data)
 end
 
 local function handleMessage(senderID, msg)
+	--If we get a message from someone other than a turtle,
+	-- assume it's from someone querying stats
+	if not turtles[senderID] then
+		local payload = {}
+		payload.turtles = sizeof(turtles)
+		payload.progress = getProgress()
+		jpi.send(senderID, payload)
+		return
+	end
+
 	local oldStatus	= turtles[senderID]
 	
 	local newMine = function()
@@ -233,8 +247,8 @@ local function main()
 		end
 			
 		while true do
-			senderID, msg = jpi.receive(3)
-			if not senderID then break end
+			senderID, msg = jpi.receive(nil, 3)
+			if senderID == nil then break end
 			handleMessage(senderID, msg)
 		end
 	end
