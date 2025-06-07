@@ -77,6 +77,10 @@ while true do
 		if id == miningServerID then
 			out.setCursorPos(1, line)
 			out.write("  Turtles: "..payload.turtles)
+			line = line + 1
+			
+			out.setCursorPos(1, line)
+			out.write("  Idle: "..payload.idle)
 			line = line + 2
 			
 			out.setCursorPos(1, line)

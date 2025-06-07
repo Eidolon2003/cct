@@ -2,6 +2,7 @@
 local currentCell = vector.new(0,0,0)
 local miningQueue = {}
 local inProgress = {}
+local idleCount = 0
 
 --These are not:
 local FILENAME = "mine.dat"
@@ -40,6 +41,8 @@ local function readFile()
 		inProgress[id] = v
 	end
 	
+	idleCount = file.read()
+	
 	file.close()
 	return true
 end
@@ -65,6 +68,10 @@ local function writeFile()
 		file.write(i)
 		writeVector(file, v)
 	end
+	
+	file.write(idleCount)
+	
+	file.close()
 end
 
 local function getNextCell()
@@ -73,15 +80,14 @@ local function getNextCell()
 		nextCell.z = 0
 		nextCell = nextCell + vector.new(1,0,0)
 	end
-	if nextCell.x == 16 then
-		return nil
-	else
-		return nextCell
-	end
+	return nextCell
 end
 
 local function getNextCoordinate()
 	if #miningQueue == 0 then
+		
+		if currentCell.x >= 16 then return nil end
+		
 		--"knight's move" pattern
 		local offsets = {
 			vector.new(0,0,1),
@@ -146,6 +152,7 @@ local function handleMessage(senderID, msg)
 		local payload = {}
 		payload.turtles = sizeof(turtles)
 		payload.progress = getProgress()
+		payload.idle = idleCount
 		jpi.send(senderID, payload)
 		return
 	end
@@ -162,6 +169,8 @@ local function handleMessage(senderID, msg)
 		else
 			msg = MSG_IDLE
 			turtles[senderID] = STATUS_IDLE
+			nextCoord = vector.new(2, 0, idleCount)
+			idleCount = idleCount + 1
 		end
 		sendMessage(senderID, msg, nextCoord)
 	end

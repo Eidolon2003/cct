@@ -91,8 +91,8 @@ local function isOre()
 	if not a then return false end
 	
 	local nonores = {
-		"minecraft:andesite",
 		"xycraft_world:kivi",
+		"minecraft:clay",
 	}
 	
 	local flag = false
@@ -167,6 +167,9 @@ local function handleMessage(msg, data)
 		mineVector = dataToVec(data)
 		if DEBUG then print("mine", mineVector) end
 		mine()
+	elseif msg == MSG_IDLE then
+		jpi.move(dataToVec(data))
+		jpi.move(vector.new(0, -3, 0))
 	end
 end
 
