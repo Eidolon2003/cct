@@ -162,11 +162,16 @@ function jpi.ping(targetID, --[[optional]] timeout)
 	packet.payload.ack = false
 	jpi.modem.transmit(receiverID, senderID, packet)
 	
+	local success = nil
 	local distance = nil
 	local function getReply()
-		_,distance = os.pullEvent("jpi_ping")
+		success,distance = os.pullEvent("jpi_ping")
 	end
 	parallel.waitForAny(getReply, function() os.sleep(timeout) end)
+	
+	if not success then return nil end
+	
+	if not distance then return -1 end
 	
 	return distance
 end
