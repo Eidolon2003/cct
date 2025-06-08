@@ -169,7 +169,8 @@ local function handleMessage(msg, data)
 		mine()
 	elseif msg == MSG_IDLE then
 		jpi.move(dataToVec(data))
-		jpi.move(vector.new(0, -3, 0))
+		jpi.move(vector.new(0, -4, 0))
+		jpi.face(vector.new(0, 0, 1))
 	end
 end
 
