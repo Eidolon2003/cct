@@ -166,7 +166,7 @@ local function handleMessage(senderID, msg)
 	local str = "received from " .. senderID
 	if msg then
 		if type(msg) == "table" then
-			str = str .. ", " .. msg:tostring()
+			str = str .. ", " .. dataToVec(msg):tostring()
 		else
 			str = str .. ", " .. msg
 		end
