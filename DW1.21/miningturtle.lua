@@ -156,7 +156,7 @@ local function mine()
 		end
 	end
 	
-	jpi.dbg("finished mining " .. mineVector)
+	jpi.dbg("finished mining " .. mineVector:tostring())
 	jpi.send(serverID, mineVector)
 	
 	dropOff()
@@ -174,7 +174,7 @@ local function handleMessage(msg, data)
 		home()
 	elseif msg == MSG_MINE then
 		mineVector = dataToVec(data)
-		jpi.dbg("mine " .. mineVector)
+		jpi.dbg("mine " .. mineVector:tostring())
 		mine()
 	elseif msg == MSG_IDLE then
 		jpi.dbg("idle")

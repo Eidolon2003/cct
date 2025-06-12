@@ -140,8 +140,8 @@ local MSG_IDLE = "idle"
 
 local function sendMessage(id, msg, data)
 	local str = "send to " .. id .. ", " .. msg
-	if data then
-		str = str .. ", " .. data
+	if data and type(data) == "table" then
+		str = str .. ", " .. data:tostring()
 	end
 	jpi.dbg(str)
 
@@ -152,8 +152,6 @@ local function sendMessage(id, msg, data)
 end
 
 local function handleMessage(senderID, msg)
-	jpi.dbg("received from " .. senderID .. ", " .. msg)
-
 	--If we get a message from someone other than a turtle,
 	-- assume it's from someone querying stats
 	if not turtles[senderID] then
@@ -164,6 +162,16 @@ local function handleMessage(senderID, msg)
 		jpi.send(senderID, payload)
 		return
 	end
+
+	local str = "received from " .. senderID
+	if msg then
+		if type(msg) == "table" then
+			str = str .. ", " .. msg:tostring()
+		else
+			str = str .. ", " .. msg
+		end
+	end
+	jpi.dbg(str)
 
 	local oldStatus	= turtles[senderID]
 	
