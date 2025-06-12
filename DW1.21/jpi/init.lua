@@ -70,7 +70,7 @@ function jpi.dbg(text)
 	end
 	
 	print(text)
-	file.write(os.date() .. ": " .. text)
+	file.write(os.date() .. ": " .. text .. "\n")
 	
 	file.close()
 end
