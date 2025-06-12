@@ -139,7 +139,11 @@ local MSG_MINE = "mine"
 local MSG_IDLE = "idle"
 
 local function sendMessage(id, msg, data)
-	jpi.dbg("send to " .. id .. ", " .. msg .. ", " .. data)
+	local str = "send to " .. id .. ", " .. msg
+	if data then
+		str = str .. ", " .. data
+	end
+	jpi.dbg(str)
 
 	x = {}
 	x.msg = msg
