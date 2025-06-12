@@ -139,6 +139,8 @@ local MSG_MINE = "mine"
 local MSG_IDLE = "idle"
 
 local function sendMessage(id, msg, data)
+	jpi.dbg("send to " .. id .. ", " .. msg .. ", " .. data)
+
 	x = {}
 	x.msg = msg
 	x.data = data
@@ -146,6 +148,8 @@ local function sendMessage(id, msg, data)
 end
 
 local function handleMessage(senderID, msg)
+	jpi.dbg("received from " .. senderID .. ", " .. msg)
+
 	--If we get a message from someone other than a turtle,
 	-- assume it's from someone querying stats
 	if not turtles[senderID] then
@@ -221,6 +225,7 @@ local function main()
 			if string.find(key, "mt_")
 			and not turtles[val] then
 				turtles[val] = STATUS_NEW
+				jpi.dbg(key .. " (" .. val .. ") connected")
 			end
 		end
 		

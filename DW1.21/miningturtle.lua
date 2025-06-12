@@ -5,9 +5,7 @@ local MSG_MINE = "mine"
 local MSG_IDLE = "idle"
 
 local serverID = jpi.arp("MiningServer")
-if DEBUG then print("arp") end
 while not serverID do
-	if DEBUG then print("arp") end
 	serverID = jpi.arp("MiningServer")
 end
 
@@ -82,6 +80,8 @@ local function home()
 	
 	jpi.setOrigin()
 	dropOff()
+	
+	jpi.dbg("finished homing")
 	jpi.send(serverID, 0)
 	return
 end
@@ -117,6 +117,7 @@ local function mine()
 	end
 	
 	--mine
+	jpi.dbg("beginning mining")
 	while turtle.digDown() do
 		repeat until not turtle.digDown()
 		jpi.down()
@@ -129,10 +130,15 @@ local function mine()
 		end
 		
 		if turtle.getItemDetail(16) then
+			jpi.dbg("inventory full")
+		
 			local p = jpi.getPos()
 			dropOff()
+			jpi.dbg("finished unloading")
+			
 			jpi.move(mineVector)
 			jpi.moveto(p)
+			jpi.dbg("resuming mining")
 		end
 	end
 	
@@ -150,8 +156,11 @@ local function mine()
 		end
 	end
 	
+	jpi.dbg("finished mining " .. mineVector)
 	jpi.send(serverID, mineVector)
+	
 	dropOff()
+	jpi.dbg("finished unloading")
 	jpi.send(serverID, 0)
 end
 
@@ -161,13 +170,14 @@ end
 
 local function handleMessage(msg, data)
 	if msg == MSG_HOME then
-		if DEBUG then print("home") end
+		jpi.dbg("home")
 		home()
 	elseif msg == MSG_MINE then
 		mineVector = dataToVec(data)
-		if DEBUG then print("mine", mineVector) end
+		jpi.dbg("mine " .. mineVector)
 		mine()
 	elseif msg == MSG_IDLE then
+		jpi.dbg("idle")
 		jpi.move(dataToVec(data))
 		jpi.move(vector.new(0, -4, 0))
 		jpi.face(vector.new(0, 0, 1))
