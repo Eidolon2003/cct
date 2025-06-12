@@ -35,7 +35,11 @@ local function terminateHandler()
 	deinitNetwork()
 end
 
-function jpi.execute(program)
+jpi.isDebug = false
+
+function jpi.execute(program, dbg)
+	jpi.isDebug = not not dbg
+
 	initNetwork()
 	
 	local runner,getResult = bindCall(program)
@@ -55,6 +59,20 @@ function jpi.execute(program)
 	deinitNetwork()
 	
 	return getResult()
+end
+
+function jpi.dbg(text)
+	if not jpi.isDebug then return end
+	
+	local file = fs.open("log", "a")
+	if not file then
+		print("jpi: couldn't open log file")
+	end
+	
+	print(text)
+	file.write(os.date() .. ": " .. text)
+	
+	file.close()
 end
 
 return jpi
