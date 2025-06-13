@@ -90,7 +90,18 @@ local function handlePing(receiverID, senderID, packet, distance)
 end
 
 local function handleMsg(receiverID, senderID, packet)
+	local newReceiverID = senderID
+	local newSenderID = jpi.myID
+	local newPacket = {}
+	newPacket.protocol = "ack"
+	newPacket.payload = true
+	jpi.modem.transmit(newReceiverID, newSenderID, newPacket)
+
 	os.queueEvent("jpi_msg", senderID, packet.payload)
+end
+
+local function handleAck(receiverID, senderID, packet)
+	os.queueEvent("jpi_ack", senderID)
 end
 
 function handleEvents()
@@ -108,6 +119,8 @@ function handleEvents()
 				handlePing(receiverID, senderID, packet, distance)
 			elseif packet.protocol == "msg" then
 				handleMsg(receiverID, senderID, packet)
+			elseif packet.protocol == "ack" then
+				handleAck(receiverID, senderID, packet)
 			end
 		end
 	end
@@ -170,14 +183,14 @@ function jpi.ping(targetID, --[[optional]] timeout)
 	parallel.waitForAny(getReply, function() os.sleep(timeout) end)
 	
 	if not success then return nil end
-	
 	if not distance then return -1 end
-	
 	return distance
 end
 
-function jpi.send(targetID, payload)
+function jpi.send(targetID, payload, --[[optional]] timeout)
 	if not jpi.modem then return nil end
+	
+	timeout = timeout or 1
 	
 	local receiverID = targetID
 	local senderID = jpi.myID
@@ -186,7 +199,22 @@ function jpi.send(targetID, payload)
 	packet.payload = payload
 	jpi.modem.transmit(receiverID, senderID, packet)
 	
-	return true
+	local success = nil
+	local senderID = nil
+	local function getAck()
+		while true do
+			local s,id = os.pullEvent("jpi_ack")
+			if id == targetID then 
+				success = s
+				senderID = id
+				return
+			end
+			os.queueEvent(s, id)
+		end
+	end
+	parallel.waitForAny(getAck, function() os.sleep(timeout) end)
+	
+	return not not success
 end
 
 function jpi.receive( --[[optional]] id, --[[optional]] timeout )

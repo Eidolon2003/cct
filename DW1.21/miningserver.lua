@@ -148,7 +148,7 @@ local function sendMessage(id, msg, data)
 	x = {}
 	x.msg = msg
 	x.data = data
-	jpi.send(id, x)
+	repeat until jpi.send(id, x)
 end
 
 local function handleMessage(senderID, msg)
@@ -159,7 +159,7 @@ local function handleMessage(senderID, msg)
 		payload.turtles = sizeof(turtles)
 		payload.progress = getProgress()
 		payload.idle = idleCount
-		jpi.send(senderID, payload)
+		repeat until jpi.send(senderID, payload)
 		return
 	end
 

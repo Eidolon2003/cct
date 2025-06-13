@@ -82,7 +82,7 @@ local function home()
 	dropOff()
 	
 	jpi.dbg("finished homing")
-	jpi.send(serverID, 0)
+	repeat until jpi.send(serverID, 0)
 	return
 end
 
@@ -157,11 +157,11 @@ local function mine()
 	end
 	
 	jpi.dbg("finished mining " .. mineVector:tostring())
-	jpi.send(serverID, mineVector)
+	repeat until jpi.send(serverID, mineVector)
 	
 	dropOff()
 	jpi.dbg("finished unloading")
-	jpi.send(serverID, 0)
+	repeat until jpi.send(serverID, 0)
 end
 
 local function dataToVec(data)
