@@ -1,5 +1,3 @@
-local DEBUG = false
-
 local MSG_HOME = "home"
 local MSG_MINE = "mine"
 local MSG_IDLE = "idle"
@@ -82,7 +80,7 @@ local function home()
 	dropOff()
 	
 	jpi.dbg("finished homing")
-	repeat until jpi.send(serverID, 0)
+	repeat until jpi.send(serverID, MSG_HOME)
 	return
 end
 
@@ -157,11 +155,10 @@ local function mine()
 	end
 	
 	jpi.dbg("finished mining " .. mineVector:tostring())
-	repeat until jpi.send(serverID, mineVector)
 	
 	dropOff()
 	jpi.dbg("finished unloading")
-	repeat until jpi.send(serverID, 0)
+	repeat until jpi.send(serverID, MSG_MINE)
 end
 
 local function dataToVec(data)

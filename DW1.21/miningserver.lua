@@ -127,13 +127,9 @@ local function getProgress()
 	return currentCell.x * 16 + currentCell.z
 end
 
-local turtles = {}
+local homeBusy = false
+local activeTurtles = {}
 
-local STATUS_HOMING = "homing"
-local STATUS_UNLOAD = "unloading"
-local STATUS_MINING = "mining"
-local STATUS_IDLE = "idle"
-local STATUS_NEW = "new"
 local MSG_HOME = "home"
 local MSG_MINE = "mine"
 local MSG_IDLE = "idle"
@@ -154,60 +150,40 @@ end
 local function handleMessage(senderID, msg)
 	--If we get a message from someone other than a turtle,
 	-- assume it's from someone querying stats
-	if not turtles[senderID] then
+	if not activeTurtles[senderID] then
 		local payload = {}
-		payload.turtles = sizeof(turtles)
+		payload.turtles = sizeof(inProgress)
 		payload.progress = getProgress()
 		payload.idle = idleCount
 		repeat until jpi.send(senderID, payload)
 		return
 	end
-
-	local str = "received from " .. senderID
-	if msg then
-		if type(msg) == "table" then
-			str = str .. ", " .. dataToVec(msg):tostring()
-		else
-			str = str .. ", " .. msg
-		end
-	end
-	jpi.dbg(str)
-
-	local oldStatus	= turtles[senderID]
 	
 	local newMine = function()
-		local nextCoord = getNextCoordinate()
 		local msg = nil
+		local nextCoord = inProgress[senderID] or getNextCoordinate()
 		if nextCoord then
 			msg = MSG_MINE
-			turtles[senderID] = STATUS_MINING
 			inProgress[senderID] = nextCoord
 		else
 			msg = MSG_IDLE
-			turtles[senderID] = STATUS_IDLE
+			inProgress[senderID] = nil
 			nextCoord = vector.new(2, 0, idleCount)
 			idleCount = idleCount + 1
 		end
 		sendMessage(senderID, msg, nextCoord)
 	end
 	
-	if oldStatus == STATUS_HOMING then
-		if inProgress[senderID] then
-			turtles[senderID] = STATUS_MINING
-			sendMessage(
-				senderID,
-				MSG_MINE,
-				inProgress[senderID]
-			)
-		else
-			newMine()
-		end
-	elseif oldStatus == STATUS_UNLOAD then
+	if msg == MSG_HOME then
+		jpi.dbg(senderID .. " home")
+		homeBusy = false
 		newMine()
-	elseif oldStatus == STATUS_MINING then
-		turtles[senderID] = STATUS_UNLOAD
-		local v = dataToVec(msg)
-		removeByValue(inProgress, v)
+	elseif msg == MSG_MINE then
+		jpi.dbg(senderID .. " finished mining")
+		inProgress[senderID] = nil
+		newMine()
+	else
+		error("bad things have happened")
 	end
 	
 	writeFile()
@@ -215,65 +191,51 @@ end
 
 local function main()
 	--Wait a hot sec for turtles to connect
-	os.sleep(5)
-
-	turtles = {}
 	readFile()
 	
 	while true do
 		local arp = jpi.getArpCache()
 		
-		--Make sure all our turtles are still here
+		--Deactivate any turtles that don't respond to pings
+		for key,val in pairs(activeTurtles) do
+			if not jpi.ping(key) then
+				activeTurtles[key] = nil
+			end
+		end
+		
+		--Get list of available, inactive turtles
 		for key,val in pairs(arp) do
-			if not jpi.ping(val) then
-				turtles[val] = nil
+			if activeTurtles[val]
+			or not string.find(key, "mt_")
+			or not jpi.ping(val)
+			then
 				arp[key] = nil
 			end
 		end
 		
-		--Pick up any new turtles
-		-- Or old turtles that reconnected
-		for key,val in pairs(arp) do
-			if string.find(key, "mt_")
-			and not turtles[val] then
-				turtles[val] = STATUS_NEW
-				jpi.dbg(key .. " (" .. val .. ") connected")
-			end
-		end
-		
-		--Only allow one turtle to home at a time
-		--Start with the nearest one
-		local homeBusy = false
-		for id,status in pairs(turtles) do
-			if status == STATUS_HOMING then
-				homeBusy = true
-			end
-		end
-		
-		if not homeBusy then
+		if sizeof(arp) > 0 and not homeBusy then
 			local lowestDistance = nil
 			local lowestID = nil
 		
-			for id,status in pairs(turtles) do
-				if status == STATUS_NEW then
-					d = jpi.ping(id)
-				
-					if not lowestDistance
-					or d < lowestDistance then
-						lowestDistance = d
-						lowestID = id
-					end
+			for key,val in pairs(arp) do
+				local d = jpi.ping(val)
+			
+				if not lowestDistance
+				or d < lowestDistance then
+					lowestDistance = d
+					lowestID = val
 				end
 			end
 			
 			if lowestID then
-				turtles[lowestID] = STATUS_HOMING
+				homeBusy = true
+				activeTurtles[lowestID] = true
 				sendMessage(lowestID, MSG_HOME)
 			end
 		end
 			
 		while true do
-			senderID, msg = jpi.receive(nil, 3)
+			local senderID, msg = jpi.receive(nil, 3)
 			if senderID == nil then break end
 			handleMessage(senderID, msg)
 		end

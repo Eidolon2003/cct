@@ -71,7 +71,7 @@ while true do
 		out.setTextColor(colors.white)
 		line = line + 2
 	
-		jpi.send(miningServerID, 0)
+		repeat until jpi.send(miningServerID, 0)
 		local id,payload = jpi.receive(miningServerID, 5)
 		
 		if id == miningServerID then
