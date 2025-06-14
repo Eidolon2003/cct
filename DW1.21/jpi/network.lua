@@ -111,7 +111,7 @@ function handleEvents()
 			
 		--printPacket(receiverID, senderID, packet, distance)
 			
-		if packet.protocol and packet.payload then
+		if packet.protocol then
 			if packet.protocol == "arp"
 			and packet.payload.receiverLabel == jpi.myLabel then
 				handleARP(receiverID, senderID, packet)
