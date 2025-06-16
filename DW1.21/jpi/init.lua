@@ -1,78 +1,90 @@
-local jpi = {}
-
-local function merge(t1, t2)
-	for key,val in pairs(t2) do
-		t1[key] = val
-	end
-end
-
-merge(jpi, dofile("/jpi/network.lua"))
-if turtle then 
-	merge(jpi, dofile("/jpi/turtle.lua")) 
-end
-
-local function bindCall(program)
-	local result = false
-
-	local runner = function()
-		local env = {}
-		env.jpi = jpi
-		env.jpi.execute = nil
-		merge(env, getfenv())
-		result = os.run(env, program)
-	end
+return function(prg, dbg)
+	--This table will contain API functions and such
+	local jpi = {}
 	
-	local getResult = function()
-		return result
-	end
-	
-	return runner,getResult
-end
+	--Define constants
+	jpi.EXIT_SUCCESS = true
+	jpi.EXIT_FAILURE = false
+	jpi.EXIT_SILENT = "silent"
 
-local function terminateHandler()
-	_ = os.pullEventRaw("terminate")
-	print("jpi: Execution terminated")
-	deinitNetwork()
-end
-
-jpi.isDebug = false
-
-function jpi.execute(program, dbg)
+	--Set up debugging if applicable
+	--not not reinterprets any input as true or false
 	jpi.isDebug = not not dbg
-
-	initNetwork()
 	
-	local runner,getResult = bindCall(program)
+	jpi.dbg = function(txt)
+		if not jpi.isDebug then return end
 	
-	parallel.waitForAny(
-		terminateHandler,
-		handleEvents,
-		runner
-	)
-	
-	if getResult() then
-		print("jpi: " .. program .. " exited successfully")
-	else
-		print("jpi: " .. program .. " exited with error")
+		local file = fs.open("log", "a")
+		if not file then
+			error("failed to open log file")
+		end
+		
+		print(txt)
+		file.write(os.date() .. ": " .. txt .. "\n")
+		file.close()
 	end
 	
-	deinitNetwork()
-	
-	return getResult()
-end
+	jpi.dbgPrint = function(txt)
+		if jpi.isDebug then
+			jpi.dbg(txt)
+		else
+			print(txt)
+		end
+	end
 
-function jpi.dbg(text)
-	if not jpi.isDebug then return end
-	
-	local file = fs.open("log", "a")
-	if not file then
-		print("jpi: couldn't open log file")
+	--Include optional modules
+	local initNetwork = nil
+	local deinitNetwork = nil
+	local networkHandler = nil
+	if fs.exists("jpi/network.lua") then
+		jpi.dbg("including network module")
+		deinitNetwork,networkHandler = dofile("jpi/network.lua")(jpi)
 	end
 	
-	print(text)
-	file.write(os.date() .. ": " .. text .. "\n")
+	if fs.exists("jpi/turtle.lua") and turtle then
+		jpi.dbg("including turtle module")
+		dofile("jpi/turtle.lua")(jpi)
+	end
 	
-	file.close()
-end
+	--Parallel function for properly handling termination events
+	local function terminator()
+		os.pullEventRaw("terminate")
+		jpi.dbgPrint("jpi: execution terminated")
+	end
 
-return jpi
+	--Execute the program
+	jpi.dbg("beginning execution")
+
+	if type(prg) == "function" then
+		local ret = jpi.EXIT_SILENT
+		local wrapper = function()
+			ret = prg(jpi)
+		end
+		
+		if networkHandler then
+			parallel.waitForAny(terminator, networkHandler, wrapper)
+		else
+			parallel.waitForAny(terminator, wrapper)
+		end
+		
+		if deinitNetwork then deinitNetwork() end
+		
+		if ret ~= jpi.EXIT_SILENT then
+			if ret then
+				jpi.dbgPrint("jpi: exited successfully")
+			else
+				jpi.dbgPrint("jpi: exited with error")
+			end
+		end
+		
+		return ret
+	end
+	
+	--string means a path to a lua file to run
+	if type(prg) == "string" then
+		--todo
+	end
+	
+	--prg has to be either a function or a path
+	error("unexpected first argument")
+end

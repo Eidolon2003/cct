@@ -1,27 +1,3 @@
-local jpi = {}
-
-jpi.BROADCAST = 65535
-jpi.modem = false
-jpi.myID = os.getComputerID()
-jpi.myLabel = os.getComputerLabel()
-
-function initNetwork()
-	jpi.modem = peripheral.find("modem")
-	if not jpi.modem then return end
-	
-	jpi.modem.closeAll()
-	jpi.modem.open(jpi.BROADCAST)
-	jpi.modem.open(jpi.myID)
-end
-
-function deinitNetwork()
-	if jpi.modem then 
-		jpi.modem.close(jpi.BROADCAST)
-		jpi.modem.close(jpi.myID)
-		jpi.modem = false
-	end
-end
-
 --Basic network packet format:
 --protocol
 --payload (protocol specific)
@@ -32,228 +8,352 @@ end
 	--Ping:
 	--ack
 
-local function printPacket(receiverID, senderID, packet, distance)
-	print("New packet:")
-	print("distance", distance)
-	print("receiverID", receiverID)
-	print("senderID", senderID)
-	for key,val in pairs(packet) do
-		if type(val) == "table" then
-			for key2,val2 in pairs(val) do
-				print(key2,val2)
-			end
-		else
-			print(key,val)
-		end
+return function(jpi)
+	local BROADCAST = 65535
+	local myID = os.getComputerID()
+	local myLabel = os.getComputerLabel()
+	local arpCache = {}
+
+	jpi.dbg("initializing network")
+	local modem = peripheral.find("modem")
+	if not modem then
+		error("no modem connected")
 	end
-	print("")
-end
-
-local arpCache = {}
-
-local function handleARP(receiverID, senderID, packet)
-	if receiverID == jpi.BROADCAST then
-		--If receiverID is BROADCAST, then this is an arp request
-		--Respond to the request
-		local newReceiverID = senderID
-		local newSenderID = jpi.myID
-		local newPacket = {}
-		newPacket.protocol = "arp"
-		newPacket.payload = {}
-		newPacket.payload.receiverLabel = packet.payload.senderLabel
-		newPacket.payload.senderLabel = jpi.myLabel
-		jpi.modem.transmit(newReceiverID, newSenderID, newPacket)
+	modem.open(BROADCAST)
+	modem.open(myID)
+	
+	local deinitNetwork = function()
+		jpi.dbg("deinitializing network")
+		modem.close(BROADCAST)
+		modem.close(myID)
+		modem = nil
+	end
+	
+	local function printPacket(receiverID, senderID, packet, distance)
+		if not jpi.isDebug then return end
+	
+		if packet.protocol == "arp" 
+		and packet.payload.receiverLabel == myLabel then
+			if receiverID == BROADCAST then
+				jpi.dbg(
+					string.format("received arp request: to %s, from %d(%s)", 
+					packet.payload.receiverLabel, senderID, packet.payload.senderLabel)
+				)
+			else
+				jpi.dbg(
+					string.format("received arp reply: to %d, from %d(%s)",
+					receiverID, senderID, packet.payload.senderLabel)
+				)
+			end
+			
+		elseif packet.protocol == "ping" then
+			if packet.payload.ack then
+				jpi.dbg(
+					string.format("received ping reply: to %d, from %d, %dm away",
+					receiverID, senderID, distance)
+				)
+			else
+				jpi.dbg(
+					string.format("received ping request: to %d, from %d",
+					receiverID, senderID)
+				)
+			end
 		
-		--Also cache this ID/Label pair
-		arpCache[packet.payload.senderLabel] = senderID
-	else
-		--If receiverID is filled in, then this is an arp reply
-		--Put this in event queue for the program to handle
-		os.queueEvent("jpi_arp", senderID)
-	end
-end
-
-local function handlePing(receiverID, senderID, packet, distance)
-	if packet.payload.ack then
-		--If ack is true, then this is a ping reply
-		os.queueEvent("jpi_ping", distance)
-	else
-		--If ack is false, we need to reply
-		local newReceiverID = senderID
-		local newSenderID = jpi.myID
-		local newPacket = {}
-		newPacket.protocol = "ping"
-		newPacket.payload = {}
-		newPacket.payload.ack = true
-		jpi.modem.transmit(newReceiverID, newSenderID, newPacket)
-	end
-end
-
-local function handleMsg(receiverID, senderID, packet)
-	local newReceiverID = senderID
-	local newSenderID = jpi.myID
-	local newPacket = {}
-	newPacket.protocol = "ack"
-	newPacket.payload = true
-	jpi.modem.transmit(newReceiverID, newSenderID, newPacket)
-
-	os.queueEvent("jpi_msg", senderID, packet.payload)
-end
-
-local function handleAck(receiverID, senderID, packet)
-	os.queueEvent("jpi_ack", senderID)
-end
-
-function handleEvents()
-	while true do
-		local _,_,receiverID,senderID,packet,distance 
-			= os.pullEvent("modem_message")
+		elseif packet.protocol == "msg" then
+			local msg = tostring(packet.payload)
 			
-		--printPacket(receiverID, senderID, packet, distance)
+			jpi.dbg(
+				string.format("received message: to %d, from %d, %s",
+				receiverID, senderID, msg)
+			)
 			
-		if packet.protocol then
-			if packet.protocol == "arp"
-			and packet.payload.receiverLabel == jpi.myLabel then
-				handleARP(receiverID, senderID, packet)
-			elseif packet.protocol == "ping" then
-				handlePing(receiverID, senderID, packet, distance)
-			elseif packet.protocol == "msg" then
-				handleMsg(receiverID, senderID, packet)
-			elseif packet.protocol == "ack" then
-				handleAck(receiverID, senderID, packet)
+		elseif packet.protocol == "ack" then
+			jpi.dbg(
+				string.format("received ack: to %d, from %d",
+				receiverID, senderID)
+			)
+		
+		else
+			error("unidentified packet")
+		end
+	end
+	
+	local function handleArp(receiverID, senderID, packet)
+		if receiverID == BROADCAST then
+			--If rid is BROADCAST, then this is an arp request
+			local newReceiverID = senderID
+			local newSenderID = myID
+			local newPacket = {}
+			newPacket.protocol = "arp"
+			newPacket.payload = {}
+			newPacket.payload.receiverLabel = packet.payload.senderLabel
+			newPacket.payload.senderLabel = myLabel
+			modem.transmit(newReceiverID, newSenderID, newPacket)
+			
+			--Also cache this ID/Label pair
+			arpCache[packet.payload.senderLabel] = senderID
+		else
+			--If rid is filled in, this is an arp reply
+			os.queueEvent("jpi_arp", senderID, packet.payload.senderLabel)
+		end
+	end
+	
+	local function handlePing(receiverID, senderID, packet, distance)
+		if packet.payload.ack then
+			--If ack is true, then this is a ping reply
+			os.queueEvent("jpi_ping", senderID, distance)
+		else
+			--Otherwise this is a request we should reply to
+			local newReceiverID = senderID
+			local newSenderID = myID
+			local newPacket = {}
+			newPacket.protocol = "ping"
+			newPacket.payload = {}
+			newPacket.payload.ack = true
+			modem.transmit(newReceiverID, newSenderID, newPacket)
+		end
+	end
+	
+	local function handleMsg(receiverID, senderID, packet)
+		os.queueEvent("jpi_msg", senderID, packet.payload)
+	end
+	
+	local function handleAck(receiverID, senderID, packet)
+		os.queueEvent("jpi_ack", senderID)
+	end
+	
+	local networkHandler = function()
+		while true do
+			local _,_,rid,sid,p,d = os.pullEvent("modem_message")
+			
+			if p.protocol then
+				printPacket(rid, sid, p, d)
+				
+				if p.protocol == "arp" 
+				and p.payload.receiverLabel == myLabel then
+					handleArp(rid, sid, p)
+				
+				elseif p.protocol == "ping" then
+					handlePing(rid, sid, p, d)
+					
+				elseif p.protocol == "msg" then
+					handleMsg(rid, sid, p)
+					
+				elseif p.protocol == "ack" then
+					handleAck(rid, sid, p)
+				
+				else
+					error("unidentified packet")
+				end
 			end
 		end
 	end
-end
-
-function jpi.arp(targetLabel, --[[optional]] timeout)
-	if not jpi.modem then return nil end
 	
-	--Default timeout
-	timeout = timeout or 1
-
-	--Check the cache before making a broadcast
-	if arpCache[targetLabel] then
-		return arpCache[targetLabel]
-	end
+	--Send an arp request, to resolve a label to an ID
+	--targetLabel: The label of the computer we want to query
+	--timeout (default=1): The number of seconds to wait for a reply
+	--retryCount (default=5): The number of times to retry before returning nil
+	jpi.arp = function(targetLabel, timeout, retryCount)
+		if not targetLabel
+		or type(targetLabel) ~= "string" then
+			error("invalid targetLabel argument")
+		end
 	
-	local receiverID = jpi.BROADCAST
-	local senderID = jpi.myID
-	local packet = {}
-	packet.protocol = "arp"
-	packet.payload = {}
-	packet.payload.receiverLabel = targetLabel
-	packet.payload.senderLabel = jpi.myLabel
-	jpi.modem.transmit(receiverID, senderID, packet)
-	
-	local targetID = nil
-	local function getReply()
-		_,targetID = os.pullEvent("jpi_arp")
-	end
-	parallel.waitForAny(getReply, function() os.sleep(timeout) end)
-	
-	if targetID then
-		--update cache
-		arpCache[targetLabel] = targetID
-		return targetID
-	else
+		timeout = timeout or 1
+		retryCount = retryCount or 5
+		
+		if arpCache[targetLabel] then
+			return arpCache[targetLabel]
+		end
+		
+		repeat
+			jpi.dbg("sending arp: to " .. targetLabel)
+			local rid = BROADCAST
+			local sid = myID
+			local p = {}
+			p.protocol = "arp"
+			p.payload = {}
+			p.payload.receiverLabel = targetLabel
+			p.payload.senderLabel = myLabel
+			modem.transmit(rid, sid, p)
+			
+			local targetID = nil
+			local function getReply()
+				while true do
+					local _,id,lbl = os.pullEvent("jpi_arp")
+					
+					if lbl == targetLabel then
+						targetID = id
+						return
+					end
+					
+					os.queueEvent("jpi_arp", id, lbl)
+				end
+			end
+			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
+			
+			if targetID then
+				arpCache[targetLabel] = targetID
+				return targetID
+			end
+			
+			retryCount = retryCount - 1
+		until retryCount <= 0
+		
 		return nil
 	end
-end
-
-function jpi.ping(targetID, --[[optional]] timeout)
-	if not jpi.modem then return nil end
 	
-	--Default timeout
-	timeout = timeout or 1
-	
-	local receiverID = targetID
-	local senderID = jpi.myID
-	local packet = {}
-	packet.protocol = "ping"
-	packet.payload = {}
-	packet.payload.ack = false
-	jpi.modem.transmit(receiverID, senderID, packet)
-	
-	local success = nil
-	local distance = nil
-	local function getReply()
-		success,distance = os.pullEvent("jpi_ping")
-	end
-	parallel.waitForAny(getReply, function() os.sleep(timeout) end)
-	
-	if not success then return nil end
-	if not distance then return -1 end
-	return distance
-end
-
-function jpi.send(targetID, payload, --[[optional]] timeout)
-	if not jpi.modem then return nil end
-	
-	timeout = timeout or 1
-	
-	local receiverID = targetID
-	local senderID = jpi.myID
-	local packet = {}
-	packet.protocol = "msg"
-	packet.payload = payload
-	jpi.modem.transmit(receiverID, senderID, packet)
-	
-	local success = nil
-	local senderID = nil
-	local function getAck()
-		while true do
-			local s,id = os.pullEvent("jpi_ack")
-			if id == targetID then 
-				success = s
-				senderID = id
-				return
-			end
-			os.queueEvent(s, id)
-		end
-	end
-	parallel.waitForAny(getAck, function() os.sleep(timeout) end)
-	
-	return not not success
-end
-
-function jpi.receive( --[[optional]] id, --[[optional]] timeout )
-	if not jpi.modem then return nil end
-	
-	local payload = nil
-	local senderID = nil
-	local rx = function()
-		if not id then
-			_,senderID,payload = os.pullEvent("jpi_msg")
-			return
+	--Send a ping request, receive the distance away from targetID
+	--targetID: The target of the computer to ping
+	--timeout (default=1): The number of seconds to wait for a reply
+	--retryCount (default=5): The number of times to retry before returning nil
+	--Note: returns -1 if target is in another dimension
+	jpi.ping = function(targetID, timeout, retryCount)
+		if not targetID
+		or type(targetID) ~= "number" then
+			error("invalid targetID argument")
 		end
 		
-		while true do
-			_,sid,p = os.pullEvent("jpi_msg")
-			if sid == id then
-				senderID = sid
-				payload = p
-				return
+		timeout = timeout or 1
+		retryCount = retryCount or 5
+		
+		repeat
+			jpi.dbg("sending ping: to " .. targetID)
+			local rid = targetID
+			local sid = myID
+			local p = {}
+			p.protocol = "ping"
+			p.payload = {}
+			p.payload.ack = false
+			modem.transmit(rid, sid, p)
+			
+			local success = false
+			local distance = nil
+			local function getReply()
+				while true do
+					local _,id,d = os.pullEvent("jpi_ping")
+					
+					if id == targetID then
+						success = true
+						distance = d
+						return
+					end
+					
+					os.queueEvent("jpi_ping", id, d)
+				end
 			end
-			os.queueEvent("jpi_msg", sid, p)
+			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
+			
+			if success then
+				if not distance then
+					return nil
+				else
+					return distance
+				end
+			end
+			
+			retryCount = retryCount - 1
+		until retryCount <= 0
+		
+		return nil
+	end
+	
+	--Send a message, return true if successful
+	--targetID: The target of the computer to message
+	--payload: The message to send (can be nil)
+	--timeout (default=1): The number of seconds to wait for a reply
+	--retryCount (default=5): The number of times to retry before returning nil
+	jpi.send = function(targetID, payload, timeout, retryCount)
+		if not targetID
+		or type(targetID) ~= "number" then
+			error("invalid targetID argument")
 		end
+		
+		timeout = timeout or 1
+		retryCount = retryCount or 5
+	
+		repeat
+			jpi.dbg("sending message: to " .. targetID .. ", " .. tostring(payload))
+			local rid = targetID
+			local sid = myID
+			local p = {}
+			p.protocol = "msg"
+			p.payload = payload
+			modem.transmit(rid, sid, p)
+			
+			local success = false
+			local function getReply()
+				while true do
+					local _,id = os.pullEvent("jpi_ack")
+					
+					if id == targetID then
+						success = true
+						return
+					end
+					
+					os.queueEvent("jpi_ack", id)
+				end
+			end
+			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
+			
+			if success then return true end
+			
+			retryCount = retryCount - 1
+		until retryCount <= 0
+		
+		return false
 	end
 	
-	if timeout then
-		parallel.waitForAny(rx, function() os.sleep(timeout) end)
-	else
-		rx()
+	--Wait to receive a message, return senderID and payload
+	--filterID (optional): Filter for messages from a particular ID
+	--timeout (optional): return nil after this many seconds
+	jpi.receive = function(filterID, timeout)
+		local payload = nil
+		local senderID = nil
+		
+		local function rx()
+			if not filterID then
+				_,senderID,payload = os.pullEvent("jpi_msg")
+			else
+				while true do
+					local _,id,p = os.pullEvent("jpi_msg")
+					
+					if id == filterID then
+						senderID = id
+						payload = p
+						break
+					end
+				
+					os.queueEvent("jpi_msg", id, p)
+				end
+			end
+			
+			--If we got here we received a message successfully
+			--Send an ack back to the sender
+			local rid = senderID
+			local sid = myID
+			local p = {}
+			p.protocol = "ack"
+			p.payload = true
+			modem.transmit(rid, sid, p)
+		end
+		
+		if timeout then
+			parallel.waitForAny(rx, function() os.sleep(timeout) end)
+		else
+			rx()
+		end
+		
+		return senderID, payload
 	end
 	
-	return senderID,payload
+	jpi.getArpCache = function()
+		return arpCache
+	end
+	
+	jpi.clearArpCache = function()
+		arpCache = {}
+	end
+	
+	return deinitNetwork,networkHandler
 end
-
-function jpi.getArpCache()
-	return arpCache
-end
-
-function jpi.clearArpCache()
-	arpCache = {}
-end
-
-return jpi
