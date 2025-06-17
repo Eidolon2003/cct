@@ -10,6 +10,11 @@
 
 return function(jpi)
 	local BROADCAST = 65535
+	local ARP = "arp"
+	local PING = "ping"
+	local MSG = "msg"
+	local ACK = "ack"
+	
 	local myID = os.getComputerID()
 	local myLabel = os.getComputerLabel()
 	local arpCache = {}
@@ -29,10 +34,45 @@ return function(jpi)
 		modem = nil
 	end
 	
+	local eventQueue = {}
+	
+	local function queueEvent(e, a, b)
+		local tbl = {}
+		tbl.e = e
+		tbl.a = a
+		tbl.b = b
+		
+		--insert at end
+		table.insert(eventQueue, tbl)
+	end
+	
+	local function pullEvent(e)
+		local tbl = nil
+		local idx = nil
+		
+		while true do
+			for i,v in ipairs(eventQueue) do
+				if v.e == e then
+					idx = i
+					break
+				end
+			end
+			
+			if idx then
+				tbl = table.remove(eventQueue, idx)
+				break
+			end
+			
+			os.sleep(0)
+		end
+		
+		return tbl.e, tbl.a, tbl.b
+	end
+	
 	local function printPacket(receiverID, senderID, packet, distance)
 		if not jpi.isDebug then return end
 	
-		if packet.protocol == "arp" 
+		if packet.protocol == ARP
 		and packet.payload.receiverLabel == myLabel then
 			if receiverID == BROADCAST then
 				jpi.dbg(
@@ -46,7 +86,7 @@ return function(jpi)
 				)
 			end
 			
-		elseif packet.protocol == "ping" then
+		elseif packet.protocol == PING then
 			if packet.payload.ack then
 				jpi.dbg(
 					string.format("received ping reply: to %d, from %d, %dm away",
@@ -59,7 +99,7 @@ return function(jpi)
 				)
 			end
 		
-		elseif packet.protocol == "msg" then
+		elseif packet.protocol == MSG then
 			local msg = tostring(packet.payload)
 			
 			jpi.dbg(
@@ -67,7 +107,7 @@ return function(jpi)
 				receiverID, senderID, msg)
 			)
 			
-		elseif packet.protocol == "ack" then
+		elseif packet.protocol == ACK then
 			jpi.dbg(
 				string.format("received ack: to %d, from %d",
 				receiverID, senderID)
@@ -81,7 +121,7 @@ return function(jpi)
 			local newReceiverID = senderID
 			local newSenderID = myID
 			local newPacket = {}
-			newPacket.protocol = "arp"
+			newPacket.protocol = ARP
 			newPacket.payload = {}
 			newPacket.payload.receiverLabel = packet.payload.senderLabel
 			newPacket.payload.senderLabel = myLabel
@@ -91,20 +131,20 @@ return function(jpi)
 			arpCache[packet.payload.senderLabel] = senderID
 		else
 			--If rid is filled in, this is an arp reply
-			os.queueEvent("jpi_arp", senderID, packet.payload.senderLabel)
+			queueEvent(ARP, senderID, packet.payload.senderLabel)
 		end
 	end
 	
 	local function handlePing(receiverID, senderID, packet, distance)
 		if packet.payload.ack then
 			--If ack is true, then this is a ping reply
-			os.queueEvent("jpi_ping", senderID, distance)
+			queueEvent(PING, senderID, distance)
 		else
 			--Otherwise this is a request we should reply to
 			local newReceiverID = senderID
 			local newSenderID = myID
 			local newPacket = {}
-			newPacket.protocol = "ping"
+			newPacket.protocol = PING
 			newPacket.payload = {}
 			newPacket.payload.ack = true
 			modem.transmit(newReceiverID, newSenderID, newPacket)
@@ -112,11 +152,11 @@ return function(jpi)
 	end
 	
 	local function handleMsg(receiverID, senderID, packet)
-		os.queueEvent("jpi_msg", senderID, packet.payload)
+		queueEvent(MSG, senderID, packet.payload)
 	end
 	
 	local function handleAck(receiverID, senderID, packet)
-		os.queueEvent("jpi_ack", senderID)
+		queueEvent(ACK, senderID)
 	end
 	
 	local networkHandler = function()
@@ -126,18 +166,18 @@ return function(jpi)
 			if p.protocol then
 				printPacket(rid, sid, p, d)
 				
-				if p.protocol == "arp" then
+				if p.protocol == ARP then
 					if p.payload.receiverLabel == myLabel then
 						handleArp(rid, sid, p)
 					end
 				
-				elseif p.protocol == "ping" then
+				elseif p.protocol == PING then
 					handlePing(rid, sid, p, d)
 					
-				elseif p.protocol == "msg" then
+				elseif p.protocol == MSG then
 					handleMsg(rid, sid, p)
 					
-				elseif p.protocol == "ack" then
+				elseif p.protocol == ACK then
 					handleAck(rid, sid, p)
 				
 				else
@@ -169,7 +209,7 @@ return function(jpi)
 			local rid = BROADCAST
 			local sid = myID
 			local p = {}
-			p.protocol = "arp"
+			p.protocol = ARP
 			p.payload = {}
 			p.payload.receiverLabel = targetLabel
 			p.payload.senderLabel = myLabel
@@ -178,14 +218,14 @@ return function(jpi)
 			local targetID = nil
 			local function getReply()
 				while true do
-					local _,id,lbl = os.pullEvent("jpi_arp")
+					local _,id,lbl = pullEvent(ARP)
 					
 					if lbl == targetLabel then
 						targetID = id
 						return
 					end
 					
-					os.queueEvent("jpi_arp", id, lbl)
+					queueEvent(ARP, id, lbl)
 				end
 			end
 			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
@@ -220,7 +260,7 @@ return function(jpi)
 			local rid = targetID
 			local sid = myID
 			local p = {}
-			p.protocol = "ping"
+			p.protocol = PING
 			p.payload = {}
 			p.payload.ack = false
 			modem.transmit(rid, sid, p)
@@ -229,7 +269,7 @@ return function(jpi)
 			local distance = nil
 			local function getReply()
 				while true do
-					local _,id,d = os.pullEvent("jpi_ping")
+					local _,id,d = pullEvent(PING)
 					
 					if id == targetID then
 						success = true
@@ -237,7 +277,7 @@ return function(jpi)
 						return
 					end
 					
-					os.queueEvent("jpi_ping", id, d)
+					queueEvent(PING, id, d)
 				end
 			end
 			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
@@ -275,21 +315,21 @@ return function(jpi)
 			local rid = targetID
 			local sid = myID
 			local p = {}
-			p.protocol = "msg"
+			p.protocol = MSG
 			p.payload = payload
 			modem.transmit(rid, sid, p)
 			
 			local success = false
 			local function getReply()
 				while true do
-					local _,id = os.pullEvent("jpi_ack")
+					local _,id = pullEvent(ACK)
 					
 					if id == targetID then
 						success = true
 						return
 					end
 					
-					os.queueEvent("jpi_ack", id)
+					queueEvent(ACK, id)
 				end
 			end
 			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
@@ -311,10 +351,10 @@ return function(jpi)
 		
 		local function rx()
 			if not filterID then
-				_,senderID,payload = os.pullEvent("jpi_msg")
+				_,senderID,payload = pullEvent(MSG)
 			else
 				while true do
-					local _,id,p = os.pullEvent("jpi_msg")
+					local _,id,p = pullEvent(MSG)
 					
 					if id == filterID then
 						senderID = id
@@ -322,7 +362,7 @@ return function(jpi)
 						break
 					end
 				
-					os.queueEvent("jpi_msg", id, p)
+					queueEvent(MSG, id, p)
 				end
 			end
 			
@@ -331,7 +371,7 @@ return function(jpi)
 			local rid = senderID
 			local sid = myID
 			local p = {}
-			p.protocol = "ack"
+			p.protocol = ACK
 			p.payload = true
 			modem.transmit(rid, sid, p)
 		end
