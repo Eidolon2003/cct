@@ -72,9 +72,6 @@ return function(jpi)
 				string.format("received ack: to %d, from %d",
 				receiverID, senderID)
 			)
-		
-		else
-			error("unidentified packet")
 		end
 	end
 	
