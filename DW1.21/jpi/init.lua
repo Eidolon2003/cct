@@ -55,36 +55,45 @@ return function(prg, dbg)
 	--Execute the program
 	jpi.dbg("beginning execution")
 
+	local wrapper = nil
+	local ret = jpi.EXIT_SILENT
+
 	if type(prg) == "function" then
-		local ret = jpi.EXIT_SILENT
-		local wrapper = function()
+		wrapper = function()
 			ret = prg(jpi)
 		end
 		
-		if networkHandler then
-			parallel.waitForAny(terminator, networkHandler, wrapper)
+	elseif type(prg) == "string" then
+		if not fs.exists(prg) then
+			error(prg .. " does not exist")
+		end
+	
+		wrapper = function()
+			local env = getfenv()
+			env.jpi = jpi
+			ret = os.run(env, prg)
+		end
+		
+	else
+		--prg has to be either a function or a path
+		error("unexpected first argument")
+	end
+	
+	if networkHandler then
+		parallel.waitForAny(terminator, networkHandler, wrapper)
+	else
+		parallel.waitForAny(terminator, wrapper)
+	end
+	
+	if deinitNetwork then deinitNetwork() end
+	
+	if ret ~= jpi.EXIT_SILENT then
+		if ret then
+			jpi.dbgPrint("jpi: exited successfully")
 		else
-			parallel.waitForAny(terminator, wrapper)
+			jpi.dbgPrint("jpi: exited with error")
 		end
-		
-		if deinitNetwork then deinitNetwork() end
-		
-		if ret ~= jpi.EXIT_SILENT then
-			if ret then
-				jpi.dbgPrint("jpi: exited successfully")
-			else
-				jpi.dbgPrint("jpi: exited with error")
-			end
-		end
-		
-		return ret
 	end
 	
-	--string means a path to a lua file to run
-	if type(prg) == "string" then
-		--todo
-	end
-	
-	--prg has to be either a function or a path
-	error("unexpected first argument")
+	return ret
 end

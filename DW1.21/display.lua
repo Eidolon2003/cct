@@ -1,7 +1,4 @@
-if not jpi then
-	require("jpi").execute("display.lua")
-else
-
+local function main(jpi)
 
 local mon = peripheral.wrap("right")
 local out = term
@@ -48,7 +45,7 @@ while true do
 	line = line + 3
 	
 	if not miningServerID then
-		miningServerID = jpi.arp("MiningServer")
+		miningServerID = jpi.arp("MiningServer",1,1)
 	end
 	
 	--Make sure it's still there
@@ -95,5 +92,10 @@ while true do
 	os.sleep(10)
 end
 
+end
 
+if jpi then
+	main(jpi)
+else
+	require("jpi")(main)
 end
