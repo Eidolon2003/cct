@@ -129,9 +129,10 @@ return function(jpi)
 			if p.protocol then
 				printPacket(rid, sid, p, d)
 				
-				if p.protocol == "arp" 
-				and p.payload.receiverLabel == myLabel then
-					handleArp(rid, sid, p)
+				if p.protocol == "arp" then
+					if p.payload.receiverLabel == myLabel then
+						handleArp(rid, sid, p)
+					end
 				
 				elseif p.protocol == "ping" then
 					handlePing(rid, sid, p, d)
