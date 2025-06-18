@@ -46,13 +46,13 @@ return function(jpi)
 		table.insert(eventQueue, tbl)
 	end
 	
-	local function pullEvent(e)
+	local function pullEvent(e, id)
 		local tbl = nil
 		local idx = nil
 		
 		while true do
 			for i,v in ipairs(eventQueue) do
-				if v.e == e then
+				if v.e == e and (v.a == id or id == nil) then
 					idx = i
 					break
 				end
@@ -276,17 +276,7 @@ return function(jpi)
 			local success = false
 			local distance = nil
 			local function getReply()
-				while true do
-					local _,id,d = pullEvent(PING)
-					
-					if id == targetID then
-						success = true
-						distance = d
-						return
-					end
-					
-					queueEvent(PING, id, d)
-				end
+				success,_,distance = pullEvent(PING, targetID)
 			end
 			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
 			
@@ -330,14 +320,7 @@ return function(jpi)
 			local success = false
 			local function getReply()
 				while true do
-					local _,id = pullEvent(ACK)
-					
-					if id == targetID then
-						success = true
-						return
-					end
-					
-					queueEvent(ACK, id)
+					success,_ = pullEvent(ACK, targetID)
 				end
 			end
 			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
@@ -358,21 +341,7 @@ return function(jpi)
 		local senderID = nil
 		
 		local function rx()
-			if not filterID then
-				_,senderID,payload = pullEvent(MSG)
-			else
-				while true do
-					local _,id,p = pullEvent(MSG)
-					
-					if id == filterID then
-						senderID = id
-						payload = p
-						break
-					end
-				
-					queueEvent(MSG, id, p)
-				end
-			end
+			_,senderID,payload = pullEvent(MSG, filterID)
 		end
 		
 		if timeout then
