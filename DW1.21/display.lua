@@ -56,25 +56,22 @@ local function main(jpi)
 			out.setTextColor(colors.white)
 			line = line + 2
 		
-			repeat until jpi.send(miningServerID, 0)
-			local id,payload = jpi.receive(miningServerID)
+			local _,payload = jpi.receive(miningServerID)
 			
-			if id == miningServerID then
-				out.setCursorPos(1, line)
-				out.write("  Turtles: "..payload.turtles)
-				line = line + 1
-				
-				out.setCursorPos(1, line)
-				out.write("  Idle: "..payload.idle)
-				line = line + 2
-				
-				out.setCursorPos(1, line)
-				out.write("  Progress: "..payload.progress.."/256")
-				line = line + 1
-				
-				progressBar(payload.progress, 256, line)
-				line = line + 3
-			end
+			out.setCursorPos(1, line)
+			out.write("  Turtles: "..payload.turtles)
+			line = line + 1
+			
+			out.setCursorPos(1, line)
+			out.write("  Idle: "..payload.idle)
+			line = line + 2
+			
+			out.setCursorPos(1, line)
+			out.write("  Progress: "..payload.progress.."/256")
+			line = line + 1
+			
+			progressBar(payload.progress, 256, line)
+			line = line + 3
 		else
 			out.setTextColor(colors.red)
 			out.write("Offline")
