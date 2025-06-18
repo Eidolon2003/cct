@@ -18,6 +18,7 @@ return function(jpi)
 	local myID = os.getComputerID()
 	local myLabel = os.getComputerLabel()
 	local arpCache = {}
+	local eventQueue = {}
 
 	jpi.dbg("initializing network")
 	local modem = peripheral.find("modem")
@@ -34,13 +35,11 @@ return function(jpi)
 		modem = nil
 	end
 	
-	local eventQueue = {}
-	
-	local function queueEvent(e, a, b)
+	local function queueEvent(e, id, opt)
 		local tbl = {}
 		tbl.e = e
-		tbl.a = a
-		tbl.b = b
+		tbl.id = id
+		tbl.opt = opt
 		
 		--insert at end
 		table.insert(eventQueue, tbl)
@@ -52,7 +51,7 @@ return function(jpi)
 		
 		while true do
 			for i,v in ipairs(eventQueue) do
-				if v.e == e and (v.a == id or id == nil) then
+				if v.e == e and (v.id == id or id == nil) then
 					idx = i
 					break
 				end
@@ -63,10 +62,10 @@ return function(jpi)
 				break
 			end
 			
-			os.sleep(0)
+			os.pullEvent("jpi_new_message")
 		end
 		
-		return tbl.e, tbl.a, tbl.b
+		return tbl.e, tbl.id, tbl.opt
 	end
 	
 	local function printPacket(receiverID, senderID, packet, distance)
@@ -191,6 +190,8 @@ return function(jpi)
 				else
 					error("unidentified packet")
 				end
+				
+				os.queueEvent("jpi_new_message")
 			end
 		end
 	end
@@ -319,9 +320,7 @@ return function(jpi)
 			
 			local success = false
 			local function getReply()
-				while true do
-					success,_ = pullEvent(ACK, targetID)
-				end
+				success,_ = pullEvent(ACK, targetID)
 			end
 			parallel.waitForAny(getReply, function() os.sleep(timeout) end)
 			
