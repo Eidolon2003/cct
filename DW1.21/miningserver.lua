@@ -139,12 +139,12 @@ local function sendMessage(id, msg, data)
 	if data and type(data) == "table" then
 		str = str .. ", " .. data:tostring()
 	end
-	jpi.dbg(str)
+	jpi.dbgPrint(str)
 
 	x = {}
 	x.msg = msg
 	x.data = data
-	repeat until jpi.send(id, x)
+	jpi.send(id, x)
 end
 
 local function handleMessage(senderID, msg)
@@ -155,7 +155,7 @@ local function handleMessage(senderID, msg)
 		payload.turtles = sizeof(inProgress)
 		payload.progress = getProgress()
 		payload.idle = idleCount
-		repeat until jpi.send(senderID, payload)
+		jpi.send(senderID, payload)
 		return
 	end
 	
@@ -175,11 +175,11 @@ local function handleMessage(senderID, msg)
 	end
 	
 	if msg == MSG_HOME then
-		jpi.dbg(senderID .. " home")
+		jpi.dbgPrint(senderID .. " home")
 		homeBusy = false
 		newMine()
 	elseif msg == MSG_MINE then
-		jpi.dbg(senderID .. " finished mining")
+		jpi.dbgPrint(senderID .. " finished mining")
 		inProgress[senderID] = nil
 		newMine()
 	else
@@ -190,8 +190,18 @@ local function handleMessage(senderID, msg)
 end
 
 local function main()
-	--Wait a hot sec for turtles to connect
-	readFile()
+	local function keyGetter()
+		os.pullEvent("key")
+		print("Deleting " .. FILENAME)
+		fs.delete(FILENAME)
+	end
+	local function timer()
+		print("Starting in five seconds.\nPress any key to delete " .. FILENAME)
+		os.sleep(5)
+		print("Reading " .. FILENAME)
+		readFile()
+	end
+	parallel.waitForAny(keyGetter, timer)
 	
 	while true do
 		local arp = jpi.getArpCache()
@@ -199,6 +209,7 @@ local function main()
 		--Deactivate any turtles that don't respond to pings
 		for key,val in pairs(activeTurtles) do
 			if not jpi.ping(key) then
+				jpi.dbgPrint(key .. " disconnected")
 				activeTurtles[key] = nil
 			end
 		end

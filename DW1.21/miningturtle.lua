@@ -2,11 +2,7 @@ local MSG_HOME = "home"
 local MSG_MINE = "mine"
 local MSG_IDLE = "idle"
 
-local serverID = jpi.arp("MiningServer")
-while not serverID do
-	serverID = jpi.arp("MiningServer")
-end
-
+local serverID = nil
 local mineVector = vector.new()
 
 local function dropOff()
@@ -79,8 +75,8 @@ local function home()
 	jpi.setOrigin()
 	dropOff()
 	
-	jpi.dbg("finished homing")
-	repeat until jpi.send(serverID, MSG_HOME)
+	jpi.dbgPrint("finished homing")
+	jpi.send(serverID, MSG_HOME)
 	return
 end
 
@@ -115,7 +111,7 @@ local function mine()
 	end
 	
 	--mine
-	jpi.dbg("beginning mining")
+	jpi.dbgPrint("beginning mining")
 	while turtle.digDown() do
 		repeat until not turtle.digDown()
 		jpi.down()
@@ -128,15 +124,15 @@ local function mine()
 		end
 		
 		if turtle.getItemDetail(16) then
-			jpi.dbg("inventory full")
+			jpi.dbgPrint("inventory full")
 		
 			local p = jpi.getPos()
 			dropOff()
-			jpi.dbg("finished unloading")
+			jpi.dbgPrint("finished unloading")
 			
 			jpi.move(mineVector)
 			jpi.moveto(p)
-			jpi.dbg("resuming mining")
+			jpi.dbgPrint("resuming mining")
 		end
 	end
 	
@@ -154,11 +150,10 @@ local function mine()
 		end
 	end
 	
-	jpi.dbg("finished mining " .. mineVector:tostring())
-	
+	jpi.dbgPrint("finished mining " .. mineVector:tostring())
 	dropOff()
-	jpi.dbg("finished unloading")
-	repeat until jpi.send(serverID, MSG_MINE)
+	jpi.dbgPrint("finished unloading")
+	jpi.send(serverID, MSG_MINE)
 end
 
 local function dataToVec(data)
@@ -167,14 +162,14 @@ end
 
 local function handleMessage(msg, data)
 	if msg == MSG_HOME then
-		jpi.dbg("home")
+		jpi.dbgPrint("home")
 		home()
 	elseif msg == MSG_MINE then
 		mineVector = dataToVec(data)
-		jpi.dbg("mine " .. mineVector:tostring())
+		jpi.dbgPrint("mine " .. mineVector:tostring())
 		mine()
 	elseif msg == MSG_IDLE then
-		jpi.dbg("idle")
+		jpi.dbgPrint("idle")
 		jpi.move(dataToVec(data))
 		jpi.move(vector.new(0, -4, 0))
 		jpi.face(vector.new(0, 0, 1))
@@ -183,10 +178,20 @@ end
 
 local function main()
 	while true do
-		senderID, msg = jpi.receive()
-		if senderID == serverID then
-			handleMessage(msg.msg, msg.data)
+		if serverID and not jpi.ping(serverID) then
+			jpi.dbgPrint("MiningServer disconnected")
+			serverID = nil
 		end
+	
+		if not serverID then
+			jpi.clearArpCache()
+			repeat
+				serverID = jpi.arp("MiningServer")
+			until serverID
+		end
+	
+		local s,msg = jpi.receive(serverID, 30)
+		if s then handleMessage(msg.msg, msg.data) end
 	end
 end
 
