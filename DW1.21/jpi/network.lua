@@ -283,7 +283,7 @@ return function(jpi)
 			
 			if success then
 				if not distance then
-					return nil
+					return -1
 				else
 					return distance
 				end
