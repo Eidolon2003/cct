@@ -153,6 +153,14 @@ return function(jpi)
 	
 	local function handleMsg(receiverID, senderID, packet)
 		queueEvent(MSG, senderID, packet.payload)
+		
+		--Send an ack back to the sender
+		local rid = senderID
+		local sid = myID
+		local p = {}
+		p.protocol = ACK
+		p.payload = true
+		modem.transmit(rid, sid, p)
 	end
 	
 	local function handleAck(receiverID, senderID, packet)
@@ -365,15 +373,6 @@ return function(jpi)
 					queueEvent(MSG, id, p)
 				end
 			end
-			
-			--If we got here we received a message successfully
-			--Send an ack back to the sender
-			local rid = senderID
-			local sid = myID
-			local p = {}
-			p.protocol = ACK
-			p.payload = true
-			modem.transmit(rid, sid, p)
 		end
 		
 		if timeout then
