@@ -59,11 +59,11 @@ local function main(jpi)
 			local _,payload = jpi.receive(miningServerID)
 			
 			out.setCursorPos(1, line)
-			out.write("  Turtles: "..payload.turtles)
+			out.write("  Active: "..payload.turtles)
 			line = line + 1
 			
 			out.setCursorPos(1, line)
-			out.write("  Idle: "..payload.idle)
+			out.write("  Idling: "..payload.idle)
 			line = line + 2
 			
 			out.setCursorPos(1, line)
