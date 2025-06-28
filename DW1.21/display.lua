@@ -50,7 +50,7 @@ local function main(jpi)
 		out.setCursorPos(1, line)
 		out.write("MiningServer: ")
 		
-		if jpi.send(miningServerID, 1, 1) then
+		if miningServerID and jpi.send(miningServerID, 1, 1) then
 			out.setTextColor(colors.lime)
 			out.write("Online")
 			out.setTextColor(colors.white)
